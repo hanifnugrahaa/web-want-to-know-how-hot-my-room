@@ -17,7 +17,7 @@ function App() {
   })
   const [loading, setLoading] = useState<boolean>(true)
   const [error, setError] = useState<string | null>(null)
-  const [ipAddress, setIpAddress] = useState<string>('192.168.1.100')
+  const [ipAddress, setIpAddress] = useState<string>('192.168.137.250')
   const [connectionStatus, setConnectionStatus] = useState<'connected' | 'disconnected' | 'connecting'>('connecting')
   const [isUsingDummyData, setIsUsingDummyData] = useState<boolean>(false)
   const [lastSuccessTime, setLastSuccessTime] = useState<Date | null>(null)
@@ -28,69 +28,57 @@ function App() {
   
   const retryCount = useRef(0)
   const maxRetries = 3
+  
+  // ⭐⭐ REF UNTUK STATE YANG DIPAKAI DI INTERVAL ⭐⭐
+  const sensorEnabledRef = useRef(sensorData.sensorEnabled)
+  const loadingRef = useRef(loading)
+
+  // Update ref saat state berubah
+  useEffect(() => {
+    sensorEnabledRef.current = sensorData.sensorEnabled
+  }, [sensorData.sensorEnabled])
+
+  useEffect(() => {
+    loadingRef.current = loading
+  }, [loading])
 
   const fetchData = async (): Promise<void> => {
-    try {
-      setLoading(true)
-      setConnectionStatus('connecting')
-      
-      const data = await fetchSensorData(ipAddress)
-      
-      // Update sensor data
-      setSensorData(data)
-      setError(null)
-      setConnectionStatus('connected')
-      setLastSuccessTime(new Date())
-      retryCount.current = 0
-      
-      // Cek apakah menggunakan data dummy
-      const isLikelyDummy = data.temperature >= 25 && data.temperature <= 30 && 
-                           data.humidity >= 60 && data.humidity <= 80
-      setIsUsingDummyData(isLikelyDummy)
-      
-      // Coba save ke history (akan disave setiap 30 menit)
-      const saved = historyService.addRecord(
-        data.temperature,
-        data.humidity,
-        data.sensorEnabled,
-        isLikelyDummy
-      )
-      
-      if (saved) {
-        // Update next save time
-        const nextSave = new Date(Date.now() + 30 * 60 * 1000)
-        setNextSaveTime(nextSave)
-        
-        // Refresh history data
-        updateHistoryData()
-      }
-      
-      console.log('Data received:', data)
-      
-    } catch (err: any) {
-      console.error('Fetch error:', err)
-      
-      if (!isUsingDummyData) {
-        retryCount.current += 1
-        
-        if (retryCount.current >= maxRetries) {
-          setError('Gagal terhubung ke ESP32. Pastikan:')
-          setConnectionStatus('disconnected')
-        } else {
-          console.log(`Retrying... (${retryCount.current}/${maxRetries})`)
-          setTimeout(() => {
-            fetchData()
-          }, 2000)
-          return
-        }
-      } else {
-        setError(null)
-        setConnectionStatus('connected')
-      }
-    } finally {
-      setLoading(false)
-    }
+  console.log('=== FETCH START ===', new Date().toLocaleTimeString())
+
+  try {
+    setLoading(true)
+
+    const res = await fetch('https://whythisroomsohot.vercel.app/api/data')
+    const data = await res.json()
+
+    console.log('✅ Data:', data)
+
+    setSensorData({
+      temperature: data.temperature ?? 0,
+      humidity: data.humidity ?? 0,
+      sensorEnabled: true
+    })
+
+    setConnectionStatus('connected')
+    setLastSuccessTime(new Date())
+
+  } catch (err) {
+    console.log('❌ Error, using dummy data')
+
+    setSensorData({
+      temperature: 26.0,
+      humidity: 65.0,
+      sensorEnabled: true
+    })
+
+    setConnectionStatus('connected')
+
+  } finally {
+    setLoading(false)
+    console.log('=== FETCH END ===')
   }
+}
+
 
   const updateHistoryData = (): void => {
     const records = historyService.getAllRecords()
@@ -105,6 +93,7 @@ function App() {
       await toggleSensor(newState, ipAddress)
       setSensorData(prev => ({ ...prev, sensorEnabled: newState }))
       if (newState) {
+        // Jika sensor diaktifkan, langsung fetch data baru
         setTimeout(fetchData, 1000)
       }
     } catch (err) {
@@ -148,50 +137,32 @@ function App() {
     }
   }
 
-  useEffect(() => {
-    // Initial fetch
+ useEffect(() => {
+  fetchData()
+  updateHistoryData()
+  
+  const interval = setInterval(() => {
+    console.log('🔄 Auto-refresh')
     fetchData()
-    updateHistoryData()
-    
-    // Setup interval untuk update data setiap 5 detik
-    const dataIntervalId = setInterval(() => {
-      if (sensorData.sensorEnabled && !loading) {
-        fetchData()
-      }
-    }, 5000)
-
-    // Setup interval untuk update next save time setiap menit
-    const timeIntervalId = setInterval(() => {
-      if (nextSaveTime) {
-        const now = new Date()
-        if (now >= nextSaveTime) {
-          setNextSaveTime(new Date(now.getTime() + 30 * 60 * 1000))
-        }
-      }
-    }, 60000)
-
-    return () => {
-      clearInterval(dataIntervalId)
-      clearInterval(timeIntervalId)
-    }
-  }, [sensorData.sensorEnabled])
+  }, 5000)
+  
+  return () => clearInterval(interval)
+}, []) // ⭐⭐ EMPTY DEPENDENCY ARRAY KARENA PAKAI REF ⭐⭐
 
   // Format waktu untuk countdown
-const formatTimeRemaining = (): string => {
-  if (!nextSaveTime) return '--:--';
-  
-  // nextSaveTime sudah dalam Jakarta time jika kita set dengan benar
-  const now = new Date();
-  const diff = nextSaveTime.getTime() - now.getTime();
-  
-  if (diff <= 0) return 'Sekarang';
-  
-  const minutes = Math.floor(diff / 60000);
-  const seconds = Math.floor((diff % 60000) / 1000);
-  
-  return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
-};
-
+  const formatTimeRemaining = (): string => {
+    if (!nextSaveTime) return '--:--';
+    
+    const now = new Date();
+    const diff = nextSaveTime.getTime() - now.getTime();
+    
+    if (diff <= 0) return 'Sekarang';
+    
+    const minutes = Math.floor(diff / 60000);
+    const seconds = Math.floor((diff % 60000) / 1000);
+    
+    return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+  };
   return (
     <div className="app-container">
       <header className="header glass-effect">

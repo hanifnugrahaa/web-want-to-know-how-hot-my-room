@@ -1,7 +1,7 @@
 import { HistoryRecord, HistoryStats } from '../types';
 
 const HISTORY_KEY = 'sensor_history';
-const SAVE_INTERVAL = 30 * 60 * 1000; // 30 menit dalam milidetik
+const SAVE_INTERVAL = 10 * 60 * 1000; // 30 menit dalam milidetik
 const MAX_RECORDS = 1000; // Maksimal 1000 record untuk hindari storage penuh
 
 class HistoryService {

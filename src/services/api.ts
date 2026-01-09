@@ -2,7 +2,7 @@ import axios from 'axios'
 import type { AxiosInstance } from 'axios'
 
 // IP default - bisa diganti dari UI
-let API_BASE_URL = 'http://192.168.137.115'
+let API_BASE_URL = 'http://192.168.137.250'
 
 export const setBaseUrl = (newUrl: string): void => {
   API_BASE_URL = newUrl
