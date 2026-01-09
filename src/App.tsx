@@ -291,8 +291,8 @@ function App() {
           </div>
         </div>
 
-        {/* Configuration Card */}
-        <div className="card glass-card">
+        {/* {Configuration Card} */}
+        {/* <div className="card glass-card">
           <div className="card-header">
             <h3>Connection Configuration</h3>
           </div>
@@ -337,7 +337,7 @@ function App() {
               </button>
             </div>
           </div>
-        </div>
+        </div> */}
       </div>
 
       {/* History Panel Modal */}
